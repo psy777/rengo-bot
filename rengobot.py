@@ -520,4 +520,3 @@ async def background_task():
 
 bot.loop.create_task(background_task())
 bot.run(token)
-
