@@ -24,7 +24,7 @@ admins = [610932957276012544]  # Ohasa
 
 teachers = [610932957276012544]  # Ohasa
 
-stlgoclub_id = 832184014046625843
+awesome_server_id = 832184014046625843
 permitted_channel_ids = [1267996752477425775]
 
 white_stone = "<:white_stone:882731089548939314>"
