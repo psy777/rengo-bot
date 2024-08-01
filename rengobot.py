@@ -24,7 +24,7 @@ admins = [610932957276012544]  # Ohasa
 
 teachers = [610932957276012544]  # Ohasa
 
-awesome_server_id = 832184014046625843
+server_id = 832184014046625843
 permitted_channel_ids = [1267996752477425775]
 
 white_stone = "<:white_stone:882731089548939314>"
@@ -43,8 +43,6 @@ if not os.path.exists("state.txt"):
 
 @bot.command()
 async def help(ctx):
-    if ctx.guild.id == awesome_server_id and ctx.channel.id not in permitted_channel_ids:
-        return
     await ctx.send(
         '$help : shows this help\n\n' +
         '$join : join the game in this channel\n' +
@@ -61,7 +59,7 @@ async def help(ctx):
 
 @bot.command()
 async def play(ctx, arg):
-    if ctx.guild.id == awesome_server_id and ctx.channel.id not in permitted_channel_ids:
+    if ctx.guild.id == server_id and ctx.channel.id not in permitted_channel_ids:
         return
     channel_id = ctx.channel.id
     user = ctx.author
@@ -150,7 +148,7 @@ async def play(ctx, arg):
 
 @bot.command()
 async def edit(ctx, arg):  # literally play but with fewer things
-    if ctx.guild.id == awesome_server_id and ctx.channel.id not in permitted_channel_ids:
+    if ctx.guild.id == server_id and ctx.channel.id not in permitted_channel_ids:
         return
     # It should wait until the queue has 4 players or so
     channel_id = ctx.channel.id
@@ -204,7 +202,7 @@ async def edit(ctx, arg):  # literally play but with fewer things
 
 @bot.command()
 async def board(ctx):
-    if ctx.guild.id == awesome_server_id and ctx.channel.id not in permitted_channel_ids:
+    if ctx.guild.id == server_id and ctx.channel.id not in permitted_channel_ids:
         return
     channel_id = ctx.channel.id
     user = ctx.author
@@ -242,7 +240,7 @@ async def board(ctx):
 
 @bot.command()
 async def join(ctx):
-    if ctx.guild.id == awesome_server_id and ctx.channel.id not in permitted_channel_ids:
+    if ctx.guild.id == server_id and ctx.channel.id not in permitted_channel_ids:
         return
     channel_id = ctx.channel.id
     user = ctx.author
@@ -278,7 +276,7 @@ async def join(ctx):
 
 @bot.command()
 async def leave(ctx):
-    if ctx.guild.id == awesome_server_id and ctx.channel.id not in permitted_channel_ids:
+    if ctx.guild.id == server_id and ctx.channel.id not in permitted_channel_ids:
         return
     channel_id = ctx.channel.id
     user = ctx.author
@@ -312,7 +310,7 @@ async def leave(ctx):
 
 @bot.command()
 async def queue(ctx):
-    if ctx.guild.id == awesome_server_id and ctx.channel.id not in permitted_channel_ids:
+    if ctx.guild.id == server_id and ctx.channel.id not in permitted_channel_ids:
         return
     channel_id = ctx.channel.id
     channel = bot.get_channel(channel_id)  # thonk the order
@@ -397,14 +395,14 @@ async def queue(ctx):
 
 @bot.command()
 async def sgf(ctx):
-    if ctx.guild.id == awesome_server_id and ctx.channel.id not in permitted_channel_ids:
+    if ctx.guild.id == server_id and ctx.channel.id not in permitted_channel_ids:
         return
     file = discord.File(str(ctx.channel.id) + ".sgf")
     await ctx.send(file=file)
 
 @bot.command()
 async def newgame(ctx, gametype, handicap=0, komi=6.5):
-    if ctx.guild.id == awesome_server_id and ctx.channel.id not in permitted_channel_ids:
+    if ctx.guild.id == server_id and ctx.channel.id not in permitted_channel_ids:
         return
     channel_id = ctx.channel.id
     user = ctx.author
@@ -442,7 +440,7 @@ async def newgame(ctx, gametype, handicap=0, komi=6.5):
 
 @bot.command()
 async def resign(ctx, arg):
-    if ctx.guild.id == awesome_server_id and ctx.channel.id not in permitted_channel_ids:
+    if ctx.guild.id == server_id and ctx.channel.id not in permitted_channel_ids:
         return
     channel_id = ctx.channel.id
     user = ctx.author
@@ -473,10 +471,8 @@ async def resign(ctx, arg):
 
 async def background_task():
     await bot.wait_until_ready()
-    print("bot ready!")
-
-    guild = discord.utils.get(bot.guilds, name="Awesome Baduk")
-    game = discord.Game("multiplayer Baduk! $help for command list")
+    print("Bot is ready. Logged in as {bot.user}")
+    game = discord.Game("Multiplayer Baduk! $help for command list")
     await bot.change_presence(status=discord.Status.online, activity=game)
 
     while not bot.is_closed():
