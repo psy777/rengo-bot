@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import os
 import ast
 import time
@@ -993,5 +992,4 @@ async def background_task():
             print("Connection error")
 
 bot.loop.create_task(background_task())
->>>>>>> a94bf54a5aef0d208a8a2725a64af7c4d1511681
 bot.run(token)
