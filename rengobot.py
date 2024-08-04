@@ -43,15 +43,6 @@ permitted_channel_ids = parse_int_list(config.get("PERMITTED_CHANNEL_IDS", ""))
 white_stone = config.get("WHITE_STONE", ":white_circle:")
 black_stone = config.get("BLACK_STONE", ":black_circle:")
 
-# Debugging output to verify correct loading
-print(f"TOKEN: {token}")
-print(f"ADMINS: {admins}")
-print(f"TEACHERS: {teachers}")
-print(f"AWESOME_SERVER_ID: {awesome_server_id}")
-print(f"PERMITTED_CHANNEL_IDS: {permitted_channel_ids}")
-print(f"WHITE_STONE: {white_stone}")
-print(f"BLACK_STONE: {black_stone}")
-
 # Set up the intents
 intents = discord.Intents.default()
 intents.messages = True
