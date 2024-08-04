@@ -1,32 +1,60 @@
 import os
 import ast
 import time
-from datetime import datetime, timedelta
 import asyncio
-
 import sgfengine
-
 import discord
+import json
+
+from datetime import datetime, timedelta
 from discord.ext import commands
-from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+import json
 
-# Retrieve environment variables
-token = os.getenv("DISCORD_TOKEN")
-admins = list(map(int, os.getenv("ADMINS").split(',')))
-teachers = list(map(int, os.getenv("TEACHERS").split(',')))
-awesome_server_id = int(os.getenv("AWESOME_SERVER_ID"))
-permitted_channel_ids = list(map(int, os.getenv("PERMITTED_CHANNEL_IDS").split(',')))
+def load_config(file_path):
+    try:
+        with open(file_path, 'r') as file:
+            return json.load(file)
+    except FileNotFoundError:
+        print(f"Error: The configuration file '{file_path}' was not found.")
+    except json.JSONDecodeError:
+        print(f"Error: Could not parse JSON in file '{file_path}'. Check its syntax.")
+    except Exception as e:
+        print(f"An error occurred while reading '{file_path}': {e}")
+    return {}
 
-white_stone = os.getenv("WHITE_STONE")
-black_stone = os.getenv("BLACK_STONE")
+# Function to parse integers or lists of integers
+def parse_int_list(value):
+    try:
+        return list(map(int, value.split(',')))
+    except ValueError:
+        print(f"Error: Could not convert '{value}' to a list of integers.")
+        return []
+
+# Load configuration from the JSON file
+config = load_config('config.json')
+
+# Extract and convert configuration values
+token = config.get("DISCORD_TOKEN", "")
+admins = parse_int_list(config.get("ADMINS", ""))
+teachers = parse_int_list(config.get("TEACHERS", ""))
+awesome_server_id = config.get("AWESOME_SERVER_ID", 0)
+permitted_channel_ids = parse_int_list(config.get("PERMITTED_CHANNEL_IDS", ""))
+white_stone = config.get("WHITE_STONE", ":white_circle:")
+black_stone = config.get("BLACK_STONE", ":black_circle:")
+
+# Debugging output to verify correct loading
+print(f"TOKEN: {token}")
+print(f"ADMINS: {admins}")
+print(f"TEACHERS: {teachers}")
+print(f"AWESOME_SERVER_ID: {awesome_server_id}")
+print(f"PERMITTED_CHANNEL_IDS: {permitted_channel_ids}")
+print(f"WHITE_STONE: {white_stone}")
+print(f"BLACK_STONE: {black_stone}")
 
 # Set up the intents
 intents = discord.Intents.default()
 intents.messages = True
-intents.guilds = True
 intents.members = True
 
 # Initialize the bot with command prefix and intents
@@ -35,9 +63,6 @@ bot = commands.Bot(command_prefix='$', help_command=None, intents=intents)
 min_time_player= timedelta(seconds=1) # in random games, min time between same player plays (default days=1)
 time_to_skip= timedelta(days=1) # in queue games, how much time to wait for the next move
 min_players = 2
-
-with open("token.txt") as f:
-    token = f.readlines()[0] # Get your own token and put it in token.txt
 
 format="%Y_%m_%d_%H_%M_%S_%f"
 
