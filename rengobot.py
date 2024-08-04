@@ -5,8 +5,7 @@ import asyncio
 import sgfengine
 import discord
 import json
-import sgfmill
-import subprocess
+
 
 from datetime import datetime, timedelta
 from discord.ext import commands

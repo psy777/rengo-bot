@@ -5,3 +5,4 @@
 *.sh
 __pycache__/
 rengobot_venv/
+config.json
