@@ -5,10 +5,15 @@ import asyncio
 import sgfengine
 import discord
 import json
-
+import subprocess
+import sgfmill
+import importlib
+import cairosvg
 
 from datetime import datetime, timedelta
 from discord.ext import commands
+
+importlib.reload(sgfengine)
 
 def load_config(file_path):
     try:
@@ -158,37 +163,40 @@ async def play(ctx, arg):
         next_player=(await guild.fetch_member(state[i][4][1-colour][0]))
         await ctx.send(file=file, content="{}'s turn! ⭐".format(next_player.mention))
     elif state[i][1]=="teachers" and colour==0:
-        await ctx.send(file=file, content="Teachers' turn! ⭐")
+        await ctx.send("Teachers' turn! ⭐")
+        await board(ctx)
     else:
-        await ctx.send(file=file)
+        await board(ctx)
 
     with open("state.txt", "w") as f: f.write(repr(state))
 
 @bot.command()
-async def edit(ctx, arg): #literally play but with less things
-    if ctx.guild.id == awesome_server_id and ctx.channel.id not in permitted_channel_ids: return
-    # It should wait until the queue has 4 players or so
-    channel_id= ctx.channel.id
+async def edit(ctx, arg):
+    if ctx.guild.id == awesome_server_id and ctx.channel.id not in permitted_channel_ids:
+        return
+
+    channel_id = ctx.channel.id
     user = ctx.author
-    guild= ctx.guild
+    guild = ctx.guild
 
-    # lowest effort serialization
-    with open("state.txt") as f: state = ast.literal_eval(f.read())
+    # Lowest effort serialization
+    with open("state.txt") as f:
+        state = ast.literal_eval(f.read())
 
-    filter_state= [i for i in range(len(state))  if state[i][0] == channel_id]
+    filter_state = [i for i in range(len(state)) if state[i][0] == channel_id]
     if not filter_state:
         await ctx.send("No active game in this channel!")
         return
 
-    i= filter_state[0]
-    colour= sgfengine.next_colour(str(channel_id))
+    i = filter_state[0]
+    colour = sgfengine.next_colour(str(channel_id))
 
-    if len(state[i][2])==0 or state[i][2][-1] != user.id or datetime.now()-datetime.strptime(state[i][3][-1],format) > timedelta(minutes=5):
+    if len(state[i][2]) == 0 or state[i][2][-1] != user.id or datetime.now() - datetime.strptime(state[i][3][-1], format) > timedelta(minutes=5):
         await ctx.send("You cannot edit this move!")
         return
 
-    legal_moves=[chr(col+ord('A')-1)+str(row) for col in range(1,21) if col!=9 for row in range(1,20)]
-    legal_moves+=[chr(col+ord('a')-1)+str(row) for col in range(1,21) if col!=9 for row in range(1,20)]
+    legal_moves = [chr(col + ord('A') - 1) + str(row) for col in range(1, 21) if col != 9 for row in range(1, 20)]
+    legal_moves += [chr(col + ord('a') - 1) + str(row) for col in range(1, 21) if col != 9 for row in range(1, 20)]
     if arg not in legal_moves:
         await ctx.send("I don't understand the move! Please input it in the format `$play Q16`")
         return
@@ -199,50 +207,51 @@ async def edit(ctx, arg): #literally play but with less things
         await ctx.send(str(e))
         return
 
-    file = discord.File(str(ctx.channel.id)+".png")
-    if state[i][1]=="queue":
-        next_player=(await guild.fetch_member(state[i][4][colour][0]))
-        await ctx.send(file=file, content="{}'s turn! ⭐".format(next_player.display_name))
-    elif state[i][1]=="teachers" and colour==0:
-        next_player=(await guild.fetch_member(state[i][4][colour][0]))
-        await ctx.send(file=file, content="{}'s turn! ⭐".format(next_player.mention))
-    elif state[i][1]=="teachers" and colour==1:
-        await ctx.send(file=file, content="Teachers' turn! ⭐")
-    else:
-        await ctx.send(file=file)
+    await board(ctx)
 
-    with open("state.txt", "w") as f: f.write(repr(state))
+    with open("state.txt", "w") as f:
+        f.write(repr(state))
 
 @bot.command()
 async def board(ctx):
-    if ctx.guild.id == awesome_server_id and ctx.channel.id not in permitted_channel_ids: return
-    channel_id= ctx.channel.id
+    if ctx.guild.id == awesome_server_id and ctx.channel.id not in permitted_channel_ids:
+        return
+
+    channel_id = ctx.channel.id
     user = ctx.author
-    guild= ctx.guild
+    guild = ctx.guild
 
-    with open("state.txt") as f: state = ast.literal_eval(f.read())
+    with open("state.txt") as f:
+        state = ast.literal_eval(f.read())
 
-    filter_state= [i for i in range(len(state))  if state[i][0] == channel_id]
+    filter_state = [i for i in range(len(state)) if state[i][0] == channel_id]
     if not filter_state:
         await ctx.send("No active game in this channel!")
         return
 
-    i= filter_state[0]
-    colour= sgfengine.next_colour(str(channel_id))
+    i = filter_state[0]
+    colour = sgfengine.next_colour(str(channel_id))
 
-    os.system("sgf-render --style fancy --label-sides nesw -o "+str(channel_id)+".png -n last "+str(channel_id)+".sgf")
+    # Step 1: Render SVG file
+    svg_filename = f"{channel_id}.svg"
+    png_filename = f"{channel_id}.png"
+    os.system(f"sgf-render --style fancy --label-sides nesw -o {svg_filename} -n last {channel_id}.sgf")
 
-    file = discord.File(str(ctx.channel.id)+".png")
-    if state[i][1]=="queue":
+    # Step 2: Convert SVG to PNG
+    cairosvg.svg2png(url=svg_filename, write_to=png_filename, dpi=300, output_width=800, output_height=800)
+
+    # Send the PNG file to Discord
+    file = discord.File(png_filename)
+    if state[i][1] == "queue":
         if len(state[i][4][colour]) > 0:
-            next_player=(await guild.fetch_member(state[i][4][colour][0]))
-            await ctx.send(file=file, content="{}'s turn! ⭐".format(next_player.display_name))
+            next_player = await guild.fetch_member(state[i][4][colour][0])
+            await ctx.send(file=file, content=f"{next_player.display_name}'s turn! ⭐")
         else:
             await ctx.send(file=file, content="Waiting for players to join!")
-    if state[i][1]=="teachers":
-        if colour==0:
-            next_player=(await guild.fetch_member(state[i][4][colour][0]))
-            await ctx.send(file=file, content="{}'s turn! ⭐".format(next_player.display_name))
+    elif state[i][1] == "teachers":
+        if colour == 0:
+            next_player = await guild.fetch_member(state[i][4][colour][0])
+            await ctx.send(file=file, content=f"{next_player.display_name}'s turn! ⭐")
         else:
             await ctx.send(file=file, content="Teachers' turn! ⭐")
     else:
@@ -401,42 +410,63 @@ async def sgf(ctx):
     await ctx.send(file=file)
 
 @bot.command()
-async def newgame(ctx, gametype, handicap=0, komi=6.5):
+async def newgame(ctx, *args):
     if ctx.guild.id == awesome_server_id and ctx.channel.id not in permitted_channel_ids: return
     channel_id= ctx.channel.id
     user = ctx.author
 
     if user.id not in admins:
-        await ctx.send("You don't have permissions for this!")
+        await ctx.send("You don't have permission to start a new game.")
         return
 
+    if len(args) == 0:
+        await ctx.send("No gave type given! Please use `$newgame <random/queue/teachers>`")
+
+    gametype = args[0].lower()
+
     if gametype not in ["queue", "random", "teachers"]:
-        await ctx.send("Unrecognized game type! Please try `$newgame <queue/random/teachers>")
+        await ctx.send("Unrecognized game type! Please use `$newgame <queue/random/teachers>`")
+        return
+
+    # Set default values for handicap and komi, and override if provided
+    try:
+        handicap = int(args[1]) if len(args) > 1 else 0
+        komi = float(args[2]) if len(args) > 2 else 6.5
+    except ValueError:
+        await ctx.send("Invalid values for handicap or komi. Please provide valid numbers.")
         return
 
     # lowest effort serialization
-    with open("state.txt") as f: state = ast.literal_eval(f.read())
+    try:
+        with open("state.txt") as f: 
+            state = ast.literal_eval(f.read())
+    except FileNotFoundError:
+        state = []
+    except Exception as e:
+        await ctx.send (f"An error occurred while reading the game state: {e}")
+        return
 
     if ctx.channel.id in [ ch for (ch,_,_,_,_) in state]:
         await ctx.send("A game is already active in this channel!")
         return
 
     sgfengine.new_game(str(ctx.channel.id), handicap, komi)
+
     if gametype== "teachers":
         state.append((ctx.channel.id, gametype, [], [], [[],teachers]))
     else:
         state.append((ctx.channel.id, gametype, [], [], [[],[]]))
-
-    file = discord.File(str(ctx.channel.id)+".png")
+    
     if gametype in ["queue", "teachers"]:
-        await ctx.send(file=file, content="A new game has started! Join with `$join`")
+        await ctx.send("A new game has started! Join with `$join`")
     else:
-        await ctx.send(file=file, content="A new game has started! Play with `$play <move>`")
+        await ctx.send("A new game has started! Play with `$play <move>`")
 
     with open("state.txt", "w") as f: f.write(repr(state))
+    await board(ctx)
 
-@bot.command()
-async def resign(ctx, arg):
+@bot.command() # working rn, Todo: make this command delete the proper files from somewhere at the end of the game
+async def resign(ctx, *args):
     if ctx.guild.id == awesome_server_id and ctx.channel.id not in permitted_channel_ids: return
     channel_id= ctx.channel.id
     user = ctx.author
@@ -445,8 +475,15 @@ async def resign(ctx, arg):
         await ctx.send("You don't have permissions for this!")
         return
 
-    if arg not in ["W","B"]:
-        await ctx.send("Unrecognized colour! Please try `$resign <B/W>` to resign as Black/White")
+        # Handle missing or incorrect arguments
+    if len(args) == 0:
+        await ctx.send("No argument given! Please choose `B` or `W` to resign as Black/White.")
+        return
+
+    arg = args[0].upper()  # Convert the argument to uppercase for a case-insensitive check
+
+    if arg not in ["W", "B"]:
+        await ctx.send("Unrecognized color! Please choose `B` or `W` to resign as Black/White.")
         return
 
     with open("state.txt") as f: state = ast.literal_eval(f.read())
