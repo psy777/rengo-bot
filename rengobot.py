@@ -4,6 +4,7 @@ import time
 import asyncio
 import sgfengine
 import discord
+from discord import app_commands
 import json
 import subprocess
 import sgfmill
@@ -12,8 +13,6 @@ import cairosvg
 import logging
 from datetime import datetime, timedelta
 from discord.ext import commands
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.interval import IntervalTrigger
 
 importlib.reload(sgfengine)
 
@@ -39,10 +38,7 @@ class BotConfig:
         try:
             with open(file_path, 'r') as file:
                 config = json.load(file)
-                self.token = config.get("DISCORD_TOKEN", "")
-                self.server_config = config.get("servers", {})
-                self.time_to_skip = timedelta(seconds=config.get("TIME_TO_SKIP_SECONDS", 86400))
-                self.min_time_player = timedelta(seconds=config.get("MIN_TIME_PLAYER_SECONDS", 1))
+                self.token = config["DISCORD_TOKEN"]  # Require token
                 logging.info("Configuration loaded successfully.")
         except FileNotFoundError:
             logging.error("Config file not found. Please ensure 'config.json' exists.")
@@ -74,14 +70,6 @@ class BotConfig:
             self.state_cache = {}
             logging.exception("Unexpected error occurred while loading state.")
 
-    def get_server_settings(self, guild_id):
-        """Get server-specific settings, or defaults if not found."""
-        return self.server_config.get(str(guild_id), {
-            "admins": [],
-            "teachers": [],
-            "permitted_channel_ids": []
-        })
-
 config = BotConfig()
 config.load_config("config.json")
 config.load_state()
@@ -90,29 +78,20 @@ intents = discord.Intents.default()
 intents.messages = True
 intents.members = True
 
-bot = commands.Bot(command_prefix='$', help_command=None, intents=intents)
-
-def render_sgf_to_svg(channel_id):
-    try:
-        subprocess.run(
-            ["sgf-render", "--style", "fancy", "--label-sides", "nesw", "-o",
-             f"{channel_id}.svg", "-n", "last", f"{channel_id}.sgf"],
-            check=True
-        )
-        logging.info(f"Rendered SGF for channel {channel_id}.")
-    except subprocess.CalledProcessError as e:
-        logging.exception("SGF rendering failed.")
-        raise RuntimeError(f"SGF rendering failed: {e}")
-
-def is_channel_permitted(channel_id, settings):
-    return channel_id in settings["permitted_channel_ids"]
-
-def is_player_in_queue(game_state, user_id):
-    return user_id in game_state["players"]
-
-async def get_next_player(ctx, game_state, color):
-    next_player_id = game_state["teams"][color][0]
-    return config.member_cache.get(next_player_id) or await ctx.guild.fetch_member(next_player_id)
+class RengoBot(commands.Bot):
+    def __init__(self):
+        super().__init__(command_prefix='$', help_command=None, intents=intents)
+        self.config = config
+        
+    async def setup_hook(self):
+        try:
+            await self.load_extension("cogs.commands")
+            await self.tree.sync()
+        except commands.ExtensionError as e:
+            logging.critical(f"Failed to load extension: {e}")
+            raise
+        
+bot = RengoBot()
 
 async def handle_timeouts():
     guild = discord.utils.get(bot.guilds, name="Awesome Baduk")
@@ -124,17 +103,19 @@ async def handle_timeouts():
         if not game_state.get("moves"):
             continue
 
-        time_left = game_state["last_move_time"] + config.time_to_skip - datetime.now()
+    last_move_time = datetime.fromisoformat(game_state["last_move_time"])
+    time_left = last_move_time + config.time_to_skip - datetime.now()
 
-        if time_left < timedelta(seconds=10):
-            try:
-                next_player = await get_next_player(guild, game_state, "white")
-                channel = bot.get_channel(int(channel_id))
-                if channel:
-                    await channel.send(f"{next_player.mention}'s turn! Time is running out!")
-                logging.info(f"Warning sent to next player in channel {channel_id}.")
-            except discord.errors.DiscordException as e:
-                logging.warning(f"Discord error while notifying player in channel {channel_id}: {e}")
+    if time_left < timedelta(seconds=10):
+        try:
+            next_player_id = game_state["teams"]["white"][0]
+            next_player = await guild.fetch_member(next_player_id)
+            channel = bot.get_channel(int(channel_id))
+            if channel:
+                await channel.send(f"{next_player.mention}'s turn! Time is running out!")
+            logging.info(f"Warning sent to next player in channel {channel_id}.")
+        except discord.errors.DiscordException as e:
+            logging.warning(f"Discord error while notifying player in channel {channel_id}: {e}")
 
 @bot.event
 async def on_ready():
@@ -154,9 +135,4 @@ async def on_member_remove(member):
     if str(member.guild.id) in config.server_config:
         config.member_cache.pop(member.id, None)
         logging.info(f"Member {member.id} removed from cache for guild {member.guild.id}.")
-
-scheduler = AsyncIOScheduler()
-scheduler.add_job(handle_timeouts, IntervalTrigger(seconds=10))
-scheduler.start()
-
 bot.run(config.token)

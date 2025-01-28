@@ -1,4 +1,4 @@
-python-discord
+pythodiscord.py
 sgfmill
 cairosvg
-logging
+APScheduler

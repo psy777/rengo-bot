@@ -1,13 +1,23 @@
 import os
-from sgfmill import sgf, sgf_moves
+import json
+from sgfmill import sgf
 import cairosvg
 
 def convert_svg_to_png(svg_path, png_path, dpi=300, width=800, height=800):
     cairosvg.svg2png(url=svg_path, write_to=png_path, dpi=dpi, output_width=width, output_height=height)
 
-def new_game(channel_id, handicap=0, komi=6.5):
+def new_game(channel_name, game_uuid, handicap=0, komi=6.5):
+    # Construct file names using channel name and UUID
+    base_file_name = f"{channel_name}_{game_uuid}"
+    sgf_file = f"{base_file_name}.sgf"
+    json_file = f"{base_file_name}.json"
+    svg_file = f"{base_file_name}.svg"
+    png_file = f"{base_file_name}.png"
+
+    # Initialize a new SGF game
     game = sgf.Sgf_game(19)
     game.root.set("KM", komi)
+
     if handicap >= 2:
         game.root.set("HA", handicap)
 
@@ -23,20 +33,42 @@ def new_game(channel_id, handicap=0, komi=6.5):
         }
         game.root.set("AB", handicap_dict[handicap])
 
-    with open(f"{channel_id}.sgf", "wb") as f:
+    # Save the SGF file
+    with open(sgf_file, "wb") as f:
         f.write(game.serialise())
 
-    svg_file = f"{channel_id}.svg"
-    png_file = f"{channel_id}.png"
-    os.system(f"sgf-render --style fancy --label-sides nesw -o {svg_file} -n last {channel_id}.sgf")
+    # Initialize metadata and save to JSON file
+    metadata = {
+        "current_turn": "B",  # Black always starts
+        "handicap": handicap,
+        "komi": komi,
+        "move_number": 0  # Track the current move number
+    }
+    with open(json_file, "w") as json_f:
+        json.dump(metadata, json_f, indent=4)
+
+    # Render SVG and PNG files
+    os.system(f"sgf-render --style fancy --label-sides nesw -o {svg_file} -n last {sgf_file}")
     convert_svg_to_png(svg_file, png_file)
 
-def next_colour(channel_id):
-    with open(f"{channel_id}.sgf", "rb") as f:
-        game = sgf.Sgf_game.from_bytes(f.read())
+def next_colour(channel_name, game_uuid):
+    # Construct the metadata file name
+    json_file = f"{channel_name}_{game_uuid}.json"
 
-    node = game.get_last_node()
-    return 1 if ("B" in node.properties() or "AB" in node.properties()) else 0
+    # Load metadata
+    with open(json_file, "r") as json_f:
+        metadata = json.load(json_f)
+
+    # Determine and update the next turn based on move number
+    move_number = metadata["move_number"]
+    metadata["current_turn"] = "W" if metadata["current_turn"] == "B" else "B"
+
+    # Increment move number
+    metadata["move_number"] += 1
+
+    # Save updated metadata
+    with open(json_file, "w") as json_f:
+        json.dump(metadata, json_f, indent=4)
 
 def play_move(channel_id, messagestr, player, overwrite=False):
     thecol = ord(messagestr[0].lower()) - ord('a')
